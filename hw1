@@ -1,7 +1,7 @@
 server {
 	server_name localhost;
 	root /var/www/hw1/views;
-	index hw0.html
+	index hw0.html;
 
 	location / {
 		try_files $uri $uri/ =404;
