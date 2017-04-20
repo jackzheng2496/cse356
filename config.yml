@@ -1,0 +1,138 @@
+---
+- hosts: temp3
+  tasks:
+      - name: Install Nginx, Apache2, PHP5 and Git
+        become: yes
+        apt: name={{item}} state=present update_cache=true
+        with_items:
+            - git
+            - nginx
+            - apache2
+            - php5
+
+      - name: Install MongoDB
+        become: yes
+        command: apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 7F0CEB10
+        notify:
+            - create list file
+            - list file
+            - update apt
+            - install mongo
+
+      - name: curl stuff
+        command: bash -c 'curl -sL https://deb.nodesource.com/setup_7.x | sudo -E bash -'
+
+      - name: install nodejs
+        become: yes
+        apt: name=nodejs state=present install_recommends=yes force=yes
+
+      - name: Create Base Directory
+        become: yes
+        file: path=/var/www/ms1
+              state=directory
+              mode=0755
+
+      - name: Pull Git Repo
+        become: yes
+        git: repo=https://github.com/jackzheng2496/cse356.git
+             dest=/var/www/ms1
+             force=yes
+
+      - name: Pull Project Repo
+        become: yes
+        git: repo=https://github.com/rubydong/twitterclone.git
+             dest=/var/www/html/twitterclone
+             force=yes
+
+      - name: Remove nginx default conf
+        become: yes
+        command: rm /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+
+      - name: Remove apache2 ports conf
+        become: yes
+        command: rm /etc/apache2/ports.conf
+
+      - name: Remove apache2 default conf
+        become: yes
+        command: rm /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-enabled/000-default.conf
+
+      - name: Move Nginx conf
+        become: yes
+        command: mv /var/www/ms1/default /etc/nginx/sites-available
+
+      - name: Move Apache2 ports conf
+        become: yes
+        command: mv /var/www/ms1/ports.conf /etc/apache2
+
+      - name: Move Apache2 conf
+        become: yes
+        command: mv /var/www/ms1/000-default.conf /etc/apache2/sites-available
+
+      - name: Enable Apache2 proxy module
+        become: yes
+        command: a2enmod proxy
+
+      - name: Enable Apache2 proxy_http module
+        become: yes
+        command: a2enmod proxy_http
+
+      - name: Sym Link nginx sites-available
+        become: yes
+        file: src=/etc/nginx/sites-available/default
+              dest=/etc/nginx/sites-enabled/default
+              state=link
+        # notify:
+            #      - restart nginx
+
+      - name: Sym Link apache2 sites-available
+        become: yes
+        file: src=/etc/apache2/sites-available/000-default.conf
+            dest=/etc/apache2/sites-enabled/000-default.conf
+              state=link
+        notify:
+            - restart apache2
+
+      - name: cd to apache2 sites-available
+        command: chdir=/etc/apache2/sites-available ls
+
+      - name: Enable apache2 virtual host
+        become: yes
+        command: a2ensite 000-default.conf
+        notify:
+            - restart apache2
+
+      - name: cd to home directory
+        command: chdir=/ ls
+        notify:
+            - start nginx
+
+  handlers:
+      - name: start nginx
+        become: yes
+        service: name=nginx state=started
+
+      - name: restart nginx
+        become: yes
+        service: name=nginx state=restarted
+
+      - name: restart apache2
+        become: yes
+        service: name=apache2 state=restarted
+
+      - name: create list file
+        become: yes
+        file: path=/etc/apt/sources.list.d/mongodb-org-3.2.list state=touch mode="u=rw,g=r,o=rwx"
+
+      - name: list file
+        become: yes
+        lineinfile: dest=/etc/apt/sources.list.d/mongodb-org-3.2.list line="deb http://repo.mongodb.org/apt/ubuntu trusty/mongodb-org/3.2 multiverse"
+
+      - name: update apt
+        become: yes
+        apt: update_cache=yes
+
+      - name: install mongo
+        become: yes
+        apt: name=mongodb-org state=present update_cache=true install_recommends=yes force=yes
+        notify:
+            - restart nginx
